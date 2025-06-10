@@ -2,6 +2,8 @@ import bodyParser from "body-parser";
 import express from "express";
 import pg from "pg";
 import dotenv from "dotenv";
+import { Server } from "socket.io";
+import http from "http";
 
 const app = express();
 const port = 3000;
@@ -67,6 +69,21 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   next();
 });
+
+const server = http.createServer(app);
+const io = new Server(server,{
+  cors:{
+    origin:"*",
+    methods:['GET','POST']
+  }
+});
+io.on('connection',(socket) => {
+  console.log("Client connected: ",socket.id);
+
+  socket.on('disconnect',() => {
+    console.log("Client disconnected: ",socket.id);
+  })
+})
 
 app.get("/items", async (req, res) => {
   try {
@@ -202,6 +219,18 @@ app.post("/order", async (req, res) => {
       }
     }
     await db.query("COMMIT");
+    try {
+      const response = await fetch("http://localhost:3000/show-orders");
+      if (!response.ok) {
+        const errorResult = await response.json();
+        throw new Error(errorResult.message || "An error occured");
+      }
+      const result = await response.json();
+      // console.log(result.allOrders);
+      io.emit("newOrders",result.allOrders);
+    } catch (error) {
+      console.log(error.message);
+    }
     res.status(200).json({ message: "Success" });
   } catch (error) {
     console.log(error.message);
@@ -248,6 +277,6 @@ app.delete("/delete-individual", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });

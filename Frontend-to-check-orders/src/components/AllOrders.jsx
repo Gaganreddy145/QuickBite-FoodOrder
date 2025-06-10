@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Modal from "./Modal";
+import { io } from "socket.io-client";
 const formatOrderedTime = (ordered_on) => {
   const utcDate = ordered_on;
   const localDate = new Date(utcDate);
@@ -71,6 +72,8 @@ function AllOrders() {
         }
 
         const resData = await response.json();
+        // console.log(resData.allOrders);
+
         setOrders(resData.allOrders);
         setIsLoading(false);
       } catch (error) {
@@ -81,6 +84,23 @@ function AllOrders() {
     };
 
     fetchAllOrders();
+    const socket = io("http://localhost:3000");
+
+    socket.on("connect", () => {
+      console.log("Connected to server: ", socket.id);
+    });
+
+    socket.on("newOrders", (newOrders) => {
+      setOrders(() => [...newOrders]);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Disconnected to server: ", socket.id);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const handleDeleteTable = async (tableNo) => {
@@ -146,10 +166,9 @@ function AllOrders() {
         body: JSON.stringify({ fid, phno, tableNumber }),
       });
 
-      if(!response.ok){
+      if (!response.ok) {
         throw new Error("Unable to delete!!!");
       }
-    
     } catch (error) {
       setOrders(orders);
       setIsModal("error");
